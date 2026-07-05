@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="TextDiff — локальный инструмент для сравнения текстов. Данные не покидают браузер." />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>TextDiff — сравнение текстов</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%231e2a3a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' shape-rendering='crispEdges'%3E%3Cpath d='M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3C/svg%3E" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
+            background: #f3f5f8; color: #1e1e1e;
+            padding: 8px 12px; min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .app {
+            width: 100%; background: #fff; border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,.06), 0 1px 6px rgba(0,0,0,.03);
+            padding: 14px 20px 12px; display: flex; flex-direction: column;
+        }
+
+        /* ---------- Иконки ---------- */
+        .icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; }
+        .icon svg { width: 100%; height: 100%; }
+        .icon-lg { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; }
+        .icon-lg svg { width: 100%; height: 100%; }
+        .icon-empty { display: flex; justify-content: center; width: 100%; margin-bottom: 8px; }
+
+        /* ---------- Шапка ---------- */
+        .header { border-bottom: 1px solid #eaedf2; padding-bottom: 8px; margin-bottom: 10px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; }
+        .header-left h1 { font-size: 20px; font-weight: 600; letter-spacing: -.3px; color: #0b1e33; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .header-left h1 small { font-size: 13px; font-weight: 400; color: #5b6f87; }
+        .header .sub { font-size: 12px; color: #5b6f87; margin-top: 2px; }
+        .header .badge { background: #eef2f7; padding: 3px 10px; border-radius: 12px; font-size: 11px; color: #2c3e50; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+        .header .badge span { font-weight: 600; }
+
+        /* ---------- Поля ввода ---------- */
+        .input-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+        .input-group { display: flex; flex-direction: column; gap: 2px; }
+        .input-group label { font-size: 12px; font-weight: 600; color: #2c3e50; display: flex; align-items: center; gap: 8px; padding-left: 2px; }
+        .input-group label .count { font-weight: 400; font-size: 11px; color: #4a5f78; background: #f0f3f7; padding: 0 8px; border-radius: 10px; line-height: 20px; }
+        .input-group textarea { width: 100%; height: 300px; padding: 8px 10px; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.5; border: 1.5px solid #d0d7e2; border-radius: 6px; background: #fafbfc; resize: vertical; transition: border-color .2s, box-shadow .2s; color: #1e2a3a; tab-size: 2; }
+        .input-group textarea:focus { outline: none; border-color: #4a7db5; box-shadow: 0 0 0 3px rgba(74,125,181,.12); background: #fff; }
+        .input-group textarea::placeholder { color: #aab7c9; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; }
+        .size-warning { font-size: 12px; color: #c62828; margin-top: 2px; display: none; align-items: center; gap: 4px; }
+        .size-warning.show { display: flex; }
+
+        /* ---------- Панель управления ---------- */
+        .controls-wrapper { margin-bottom: 10px; width: 100%; }
+        .controls { width: 100%; display: flex; flex-direction: column; gap: 6px; background: #f8f9fc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e6ebf2; }
+        .controls-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
+        /* ---------- Кнопки ---------- */
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 10px; min-height: 32px; font-size: 12px; font-weight: 500; border: 1px solid transparent; border-radius: 5px; cursor: pointer; transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .1s; background: #fff; color: #2c3e50; border-color: #d0d7e2; line-height: 1.3; font-family: inherit; white-space: nowrap; }
+        .btn:hover { background: #f0f3f8; border-color: #b8c3d1; }
+        .btn:active { transform: scale(.97); }
+        .btn:focus-visible { outline: 2px solid #4a7db5; outline-offset: 2px; }
+        .btn:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
+        .btn-primary { background: #1f3a5f; color: #fff; border-color: #1f3a5f; flex: 1; min-width: 120px; }
+        .btn-primary:hover { background: #152b48; border-color: #152b48; }
+        .btn-outline { background: transparent; border-color: #d0d7e2; }
+        .btn-outline:hover { background: #eef2f7; }
+        .btn-danger-outline { background: transparent; border-color: #d0d7e2; color: #7a8fa3; }
+        .btn-danger-outline:hover { background: #fce4e4; border-color: #c62828; color: #c62828; }
+
+        .settings-divider { width: 1px; height: 20px; background: #d0d7e2; flex-shrink: 0; }
+        .setting-item { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #2c3e50; cursor: pointer; user-select: none; }
+        .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; inset: 0; background: #c8d2de; border-radius: 20px; cursor: pointer; transition: background .2s; }
+        .toggle-slider::after { content: ''; position: absolute; top: 50%; left: 2px; width: 20px; height: 20px; margin-top: -10px; background: #fff; border-radius: 50%; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+        .toggle input:checked + .toggle-slider { background: #1f3a5f; }
+        .toggle input:checked + .toggle-slider::after { transform: translateX(20px); }
+        .toggle input:focus-visible + .toggle-slider { outline: 2px solid #4a7db5; outline-offset: 2px; }
+
+        /* ---------- Выпадающий список ---------- */
+        .algo-select { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #2c3e50; }
+        .algo-select > span { font-size: 12px; color: #5b6f87; font-weight: 500; }
+        .custom-select { position: relative; min-width: 130px; }
+        .custom-select-trigger { display: flex; align-items: center; gap: 6px; border: 1.5px solid #d0d7e2; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235b6f87' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center; font-size: 13px; font-weight: 500; color: #1e2a3a; padding: 10px 28px 10px 10px; border-radius: 6px; cursor: pointer; transition: border-color .15s, box-shadow .15s; font-family: inherit; user-select: none; }
+        .custom-select-trigger:hover { border-color: #b0bcca; }
+        .custom-select.open .custom-select-trigger { border-color: #4a7db5; box-shadow: 0 0 0 3px rgba(74,125,181,.12); }
+        .custom-select-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1px solid #d0d7e2; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06); z-index: 200; opacity: 0; visibility: hidden; transform: translateY(-4px) scale(.98); transition: opacity .15s cubic-bezier(.4,0,.2,1), visibility .15s cubic-bezier(.4,0,.2,1), transform .15s cubic-bezier(.4,0,.2,1); overflow: hidden; padding: 4px; }
+        .custom-select.open .custom-select-options { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+        .custom-select-option { padding: 7px 12px; font-size: 13px; color: #2c3e50; border-radius: 5px; cursor: pointer; transition: background .1s, color .1s; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .custom-select-option:hover { background: #f0f3f7; color: #1e2a3a; }
+        .custom-select-option.active { background: #e8eef6; color: #1f3a5f; font-weight: 600; }
+        .custom-select-option.active::before { content: ''; width: 6px; height: 6px; background: #1f3a5f; border-radius: 50%; flex-shrink: 0; }
+
+        /* ---------- Режим отображения ---------- */
+        .mode-group { display: flex; align-items: center; gap: 4px; background: #eef2f7; border-radius: 6px; padding: 2px; }
+        .mode-btn { padding: 5px 14px; font-size: 12.5px; font-weight: 500; border: none; border-radius: 4px; cursor: pointer; background: transparent; color: #4a5f78; transition: background .15s, color .15s; font-family: inherit; white-space: nowrap; }
+        .mode-btn:hover { background: rgba(255,255,255,.5); }
+        .mode-btn.active { background: #fff; color: #0b1e33; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .mode-btn:focus-visible { outline: 2px solid #4a7db5; outline-offset: 1px; }
+
+        /* ---------- Результат ---------- */
+        .result-area { margin-top: 6px; border-top: 2px solid #eaedf2; padding-top: 18px; flex: 1; }
+        .result-area .result-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; }
+        .result-area .result-header h2 { font-size: 15px; font-weight: 600; color: #1e2a3a; display: flex; align-items: center; gap: 10px; }
+        .result-area .result-header .stats { font-size: 13px; color: #5b6f87; display: flex; gap: 16px; flex-wrap: wrap; }
+        .result-area .result-header .stats span { display: inline-flex; align-items: center; gap: 4px; }
+        .result-area .result-header .stats .del { color: #c62828; }
+        .result-area .result-header .stats .ins { color: #1e7e34; }
+        .result-area .result-header .stats .status-flash { animation: statusPulse .4s ease; }
+        @keyframes statusPulse { 0%{opacity:.4} 100%{opacity:1} }
+        .result-container { border: 1.5px solid #dce2ea; border-radius: 8px; background: #fafbfc; overflow: hidden; min-height: 150px; }
+        .result-container.has-result { border-color: #b8c9dd; min-height: 150px; }
+        .result-container .empty-state { padding: 40px 20px; text-align: center; color: #5a6f82; font-size: 14px; line-height: 1.6; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+        /* ---------- Unified ---------- */
+        .result-unified { padding: 18px 22px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; color: #1e2a3a; }
+        .result-unified .del { background-color: rgba(198,40,40,.12); color: #b71c1c; text-decoration: line-through; }
+        .result-unified .ins { background-color: rgba(30,126,52,.14); color: #1a5a2a; }
+
+        /* ---------- Split ---------- */
+        .result-split-table { width: 100%; border-collapse: collapse; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; table-layout: fixed; }
+        .result-split-table td { padding: 4px 8px; vertical-align: top; border-bottom: 1px solid #f0f3f7; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
+        .result-split-table td.line-num { width: 36px; text-align: right; color: #6a7f92; font-size: 12px; padding-right: 6px; user-select: none; border-right: 1px solid #e6ebf2; background: #f8f9fc; font-weight: 500; }
+        .result-split-table td .del { background-color: rgba(198,40,40,.13); color: #b71c1c; text-decoration: line-through; }
+        .result-split-table td .ins { background-color: rgba(30,126,52,.15); color: #1a5a2a; }
+        .result-split-table td .empty-cell { opacity: .2; }
+        .result-split-table .pane-label-row td { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #7a8fa3; padding: 6px 8px 4px; border-bottom: 2px solid #dce2ea; background: #f5f7fa; }
+        .result-split-table .pane-label-row td .badge-del { color: #c62828; }
+        .result-split-table .pane-label-row td .badge-ins { color: #1e7e34; }
+        .result-split-table .row-diff td { background: #fef8f6; }
+        .result-split-table .row-same td { background: #fafbfc; }
+        .result-split-scroll { overflow: auto; max-height: 500px; -webkit-overflow-scrolling: touch; }
+
+        /* ---------- Скроллбары ---------- */
+        html { scrollbar-width: thin; scrollbar-color: #c8d2de #f0f3f7; }
+        html::-webkit-scrollbar { width: 8px; }
+        html::-webkit-scrollbar-track { background: #f0f3f7; }
+        html::-webkit-scrollbar-thumb { background: #c8d2de; border-radius: 8px; border: 2px solid #f0f3f7; }
+        html::-webkit-scrollbar-thumb:hover { background: #9aabbf; }
+
+        textarea, .result-split-scroll, .custom-select-options { scrollbar-width: thin; scrollbar-color: #c8d2de #f0f3f7; }
+        textarea::-webkit-scrollbar, .result-split-scroll::-webkit-scrollbar, .custom-select-options::-webkit-scrollbar { width: 8px; height: 8px; }
+        textarea::-webkit-scrollbar-track, .result-split-scroll::-webkit-scrollbar-track, .custom-select-options::-webkit-scrollbar-track { background: #f0f3f7; border-radius: 8px; }
+        textarea::-webkit-scrollbar-thumb, .result-split-scroll::-webkit-scrollbar-thumb, .custom-select-options::-webkit-scrollbar-thumb { background: #c8d2de; border-radius: 8px; border: 2px solid #f0f3f7; }
+        textarea::-webkit-scrollbar-thumb:hover, .result-split-scroll::-webkit-scrollbar-thumb:hover, .custom-select-options::-webkit-scrollbar-thumb:hover { background: #9aabbf; }
+        textarea::-webkit-scrollbar-corner, .result-split-scroll::-webkit-scrollbar-corner, .custom-select-options::-webkit-scrollbar-corner { background: #f0f3f7; }
+
+        /* ---------- Футер ---------- */
+        .footer { width: 100%; padding-top: 16px; border-top: 1px solid #eaedf2; font-size: 13px; color: #5b6f87; text-align: center; line-height: 1.6; }
+        .footer a { color: #1f3a5f; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .footer .version { font-weight: 500; }
+
+        /* ---------- Tooltip ---------- */
+        .tooltip-el { position: fixed; background: #1e2a3a; color: #e8ecf1; font-size: 12px; font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.45; padding: 6px 12px; border-radius: 6px; max-width: 480px; max-height: 54px; white-space: normal; text-align: center; pointer-events: none; opacity: 0; visibility: hidden; transform: translateY(4px) scale(.96); transition: opacity .2s cubic-bezier(.4,0,.2,1), visibility .2s cubic-bezier(.4,0,.2,1), transform .2s cubic-bezier(.4,0,.2,1); z-index: 10000; box-shadow: 0 4px 14px rgba(0,0,0,.22); overflow: hidden; }
+        .tooltip-el.show { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+        .tooltip-el::after { content: ''; position: absolute; border: 5px solid transparent; }
+        .tooltip-el.arrow-bottom::after { top: 100%; left: 50%; transform: translateX(-50%); border-top-color: #1e2a3a; }
+        .tooltip-el.arrow-top::after { bottom: 100%; left: 50%; transform: translateX(-50%); border-bottom-color: #1e2a3a; }
+        .tooltip-el.arrow-top-left::after { bottom: 100%; left: 16px; border-bottom-color: #1e2a3a; }
+        .tooltip-el.arrow-top-right::after { bottom: 100%; right: 16px; border-bottom-color: #1e2a3a; }
+        .tooltip-el.arrow-bottom-left::after { top: 100%; left: 16px; border-top-color: #1e2a3a; }
+        .tooltip-el.arrow-bottom-right::after { top: 100%; right: 16px; border-top-color: #1e2a3a; }
+
+        /* ---------- Toast ---------- */
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e2a3a; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.2); opacity: 0; transition: opacity .25s cubic-bezier(.4,0,.2,1); pointer-events: none; z-index: 999; display: flex; align-items: center; gap: 8px; }
+        .toast.show { opacity: 1; }
+        .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; z-index: 10; border-radius: 8px; opacity: 0; transition: opacity .2s ease; }
+        .loading-overlay.visible { opacity: 1; }
+        .loading-overlay .spinner { width: 24px; height: 24px; border: 3px solid #d0d7e2; border-top-color: #1f3a5f; border-radius: 50%; animation: spin .6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---------- Адаптив ---------- */
+        @media (max-width: 900px) {
+            body { padding: 12px; }
+            .app { padding: 16px 12px 20px; }
+            .input-panel { grid-template-columns: 1fr; gap: 14px; }
+            .input-group textarea { height: 180px; }
+            .controls-row.row-top { justify-content: center; }
+            .result-split-table td { padding: 2px 4px; font-size: 13px; }
+            .result-split-table td.line-num { width: 28px; font-size: 10px; }
+            .header { flex-direction: column; align-items: flex-start; }
+            .header .badge { align-self: flex-start; }
+            .header-left h1 { font-size: 22px; }
+            .header-left h1 small { font-size: 14px; }
+            .result-area .result-header { flex-direction: column; align-items: flex-start; }
+            .result-area .result-header .stats { gap: 8px 14px; }
+        }
+        @media (max-width: 500px) {
+            .app { padding: 10px 6px 14px; }
+            .btn { padding: 5px 10px; font-size: 12px; }
+            .setting-item { font-size: 12px; }
+            .result-unified, .result-split-table td { font-size: 12px; padding: 2px 4px; }
+            .header-left h1 { font-size: 19px; }
+            .header-left h1 small { font-size: 12px; }
+        }
+        @media (min-width: 1920px) {
+            .controls { padding: 10px 22px; flex-direction: row; align-items: center; gap: 0 14px; }
+            .controls-row { display: contents; }
+            .setting-item { font-size: 12px; }
+            .mode-btn { padding: 4px 12px; font-size: 12px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <noscript>Для работы приложения необходим JavaScript.</noscript>
+
+    <main class="app" id="app">
+        <header class="header">
+            <div class="header-left">
+                <h1 data-tooltip="Инструмент предоставляется «как есть». Автор не несёт ответственности за возможные последствия использования.">
+                    <span class="icon-lg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#1e2a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </span>
+                    TextDiff*
+                    <small>Сравнение текстов</small>
+                </h1>
+                <div class="sub">
+                    Сравните два текста и увидите все различия — идеально для проверки документации,
+                    редактирования и вычитки текстов.
+                </div>
+            </div>
+            <div class="badge" role="status" aria-label="Данные обрабатываются локально">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#1f3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </span>
+                <span>Локальное сравнение</span> · данные остаются в браузере
+            </div>
+        </header>
+
+        <div class="input-panel">
+            <div class="input-group">
+                <label for="originalText">
+                    Исходный текст:
+                    <span class="count" id="countOriginal">0 симв.</span>
+                </label>
+                <textarea id="originalText" placeholder="Вставьте исходный текст…" aria-label="Исходный текст для сравнения"></textarea>
+                <div class="size-warning" id="warnOrig" role="alert">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </span>
+                    Текст слишком большой, сравнение может быть медленным.
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="modifiedText">
+                    Изменённый текст:
+                    <span class="count" id="countModified">0 симв.</span>
+                </label>
+                <textarea id="modifiedText" placeholder="Вставьте изменённый текст…" aria-label="Изменённый текст для сравнения"></textarea>
+                <div class="size-warning" id="warnMod" role="alert">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </span>
+                    Текст слишком большой, сравнение может быть медленным.
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-wrapper">
+        <div class="controls" role="toolbar" aria-label="Панель управления сравнением">
+                <div class="controls-row row-top">
+                    <label class="setting-item" data-tooltip="Показывать непечатаемые символы: · для пробела, → для табуляции, ¶ для конца абзаца">
+                        Отображать спецсимволы <span class="toggle"><input type="checkbox" id="showSpecials" checked><span class="toggle-slider"></span></span>
+                    </label>
+                    <span class="settings-divider"></span>
+                    <div class="algo-select" data-tooltip="Уровень детализации сравнения">
+                        <span>Режим сравнения:</span>
+                        <div class="custom-select" id="algoSelect" role="combobox" aria-expanded="false" aria-haspopup="listbox">
+                            <div class="custom-select-trigger" tabindex="0">по символам</div>
+                            <div class="custom-select-options" role="listbox">
+                                <div class="custom-select-option active" data-value="char" role="option" aria-selected="true">по символам</div>
+                                <div class="custom-select-option" data-value="token" role="option" aria-selected="false">по словам</div>
+                                <div class="custom-select-option" data-value="line" role="option" aria-selected="false">по строкам</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span style="font-size:13px;color:#2c3e50;">Отображать результат в:</span>
+                    <div class="mode-group" role="radiogroup" aria-label="Режим отображения результата">
+                        <button class="mode-btn active" data-mode="unified" role="radio" aria-checked="true" data-tooltip="Все изменения в одном общем потоке с зачёркиваниями и подсветками">одном окне</button>
+                        <button class="mode-btn" data-mode="split" role="radio" aria-checked="false" data-tooltip="Таблица с колонками: Исходный и Изменённый — по одной строке в ряде">двух окнах</button>
+                    </div>
+                    <button class="btn btn-danger-outline" id="btnResetDefaults" data-tooltip="Сбросить все настройки к значениям по умолчанию">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="1 4 1 10 7 10"></polyline>
+                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                            </svg>
+                        </span>
+                        Сброс настроек
+                    </button>
+                    <span class="settings-divider"></span>
+                    <button class="btn btn-primary" id="btnCompare" data-tooltip="Сравнить тексты (Ctrl+Enter)">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                        </span>
+                        Сравнить тексты
+                    </button>
+                    <button class="btn btn-outline" id="btnSwap" data-tooltip="Поменять исходный и изменённый тексты местами">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="17 1 21 5 17 9"></polyline>
+                                <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                                <polyline points="7 23 3 19 7 15"></polyline>
+                                <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                            </svg>
+                        </span>
+                        Поменять тексты местами
+                    </button>
+                    <button class="btn btn-danger-outline" id="btnClear" data-tooltip="Очистить оба текстовых поля">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </span>
+                        Очистить поля
+                    </button>
+                    <span class="settings-divider"></span>
+                    <button class="btn btn-outline" id="btnExportDocx" data-tooltip="Скачать результат сравнения в формате .docx (совместим с MS Word)">
+                        <span class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                        </span>
+                        Экспорт в .docx
+                    </button>
+            </div>
+        </div>
+        </div>
+
+        <div class="result-area">
+            <div class="result-header">
+                <h2>
+                    <span class="icon-lg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#1e2a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </span>
+                    Результат сравнения
+                    <span style="font-weight:400;font-size:13px;color:#7a8fa3;" id="resultModeLabel">— одно окно</span>
+                </h2>
+                <div class="stats" id="statsPanel" aria-live="polite">
+                    <span id="compareStatus"></span>
+                    <span>Удалено: <strong class="del" id="delCount">0</strong></span>
+                    <span>Добавлено: <strong class="ins" id="insCount">0</strong></span>
+                    <span>Совпадений: <strong id="keepCount">0</strong></span>
+                </div>
+            </div>
+
+            <div class="result-container" id="resultContainer">
+                <div class="empty-state" id="emptyState">
+                    <div class="icon-empty">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8a9fb0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                    </div>
+                    Нажмите «Сравнить тексты» (Ctrl+Enter), чтобы увидеть различия.
+                </div>
+                <div id="resultContent" style="display:none;"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div>
+            <strong>TextDiff</strong> — Инструмент для сравнения текстов.
+            Работает локально в браузере <span style="text-decoration:underline dotted;text-underline-offset:3px;color:inherit;" data-tooltip="Автоматизированное рабочее место">АРМ</span>. Все вычисления выполняются на стороне клиента, сетевые запросы не отправляются.
+            <span class="version">Версия от 05.07.2026.</span> Предложения и замечания направлять по адресу <a href="https://github.com/dituals758/TextDiff/issues">GitHub Issues</a>.
+        </div>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            /* ====================================================================
+               1. ССЫЛКИ НА ЭЛЕМЕНТЫ
+               ==================================================================== */
+            const originalEl = document.getElementById('originalText');
+            const modifiedEl = document.getElementById('modifiedText');
+            const countOrig = document.getElementById('countOriginal');
+            const countMod = document.getElementById('countModified');
+            const warnOrig = document.getElementById('warnOrig');
+            const warnMod = document.getElementById('warnMod');
+            const btnClear = document.getElementById('btnClear');
+            const btnSwap = document.getElementById('btnSwap');
+            const btnCompare = document.getElementById('btnCompare');
+            const showSpecials = document.getElementById('showSpecials');
+            const algoSelectEl = document.getElementById('algoSelect');
+            const algoSelectTrigger = algoSelectEl.querySelector('.custom-select-trigger');
+            const algoSelectOptionEls = algoSelectEl.querySelectorAll('.custom-select-option');
+            algoSelectEl._value = 'char';
+            Object.defineProperty(algoSelectEl, 'value', {
+                get: function() { return this._value; },
+                set: function(v) {
+                    this._value = v;
+                    algoSelectOptionEls.forEach(function(opt) {
+                        opt.classList.toggle('active', opt.dataset.value === v);
+                        if (opt.dataset.value === v) algoSelectTrigger.textContent = opt.textContent;
+                    });
+                }
+            });
+            const modeBtns = document.querySelectorAll('.mode-btn');
+            const resultContainer = document.getElementById('resultContainer');
+            const resultContent = document.getElementById('resultContent');
+            const emptyState = document.getElementById('emptyState');
+            const resultModeLabel = document.getElementById('resultModeLabel');
+            const delCount = document.getElementById('delCount');
+            const insCount = document.getElementById('insCount');
+            const keepCount = document.getElementById('keepCount');
+            const compareStatus = document.getElementById('compareStatus');
+            const btnExportDocx = document.getElementById('btnExportDocx');
+            btnExportDocx.disabled = true;
+            const toast = document.getElementById('toast');
+            const btnResetDefaults = document.getElementById('btnResetDefaults');
+
+            let currentMode = 'unified';
+            let lastResult = null;
+
+            /* ====================================================================
+               2. КОНСТАНТЫ
+               ==================================================================== */
+            var MAX_LCS_SIZE = 4000;
+
+            /* ====================================================================
+               3. УТИЛИТЫ
+               ==================================================================== */
+            let toastTimer = null;
+            function showToast(msg) {
+                toast.textContent = msg;
+                toast.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 2500);
+            }
+
+            function escapeHtml(s) {
+                return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            /* ====================================================================
+               4. СЧЕТЧИКИ
+               ==================================================================== */
+            function updateCounters() {
+                var oLen = originalEl.value.length;
+                var mLen = modifiedEl.value.length;
+                countOrig.textContent = oLen + ' симв.';
+                countMod.textContent = mLen + ' симв.';
+                if (algoSelectEl.value === 'line') {
+                    var oLines = originalEl.value.split(/\r?\n/).length;
+                    var mLines = modifiedEl.value.split(/\r?\n/).length;
+                    warnOrig.classList.toggle('show', oLines > MAX_LCS_SIZE);
+                    warnMod.classList.toggle('show', mLines > MAX_LCS_SIZE);
+                } else {
+                    warnOrig.classList.toggle('show', oLen > MAX_LCS_SIZE);
+                    warnMod.classList.toggle('show', mLen > MAX_LCS_SIZE);
+                }
+            }
+            originalEl.addEventListener('input', updateCounters);
+            modifiedEl.addEventListener('input', updateCounters);
+            updateCounters();
+
+            function clearResult() {
+                lastResult = null;
+                emptyState.style.display = '';
+                resultContent.style.display = 'none';
+                resultContent.innerHTML = '';
+                resultContainer.classList.remove('has-result');
+                delCount.textContent = '0';
+                insCount.textContent = '0';
+                keepCount.textContent = '0';
+                compareStatus.textContent = '';
+                btnExportDocx.disabled = true;
+            }
+
+            /* ====================================================================
+               5. ВЫПАДАЮЩИЙ СПИСОК
+               ==================================================================== */
+            algoSelectTrigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var open = algoSelectEl.classList.toggle('open');
+                algoSelectEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+
+            algoSelectTrigger.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    algoSelectTrigger.click();
+                } else if (e.key === 'Escape') {
+                    algoSelectEl.classList.remove('open');
+                    algoSelectEl.setAttribute('aria-expanded', 'false');
+                } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    algoSelectEl.classList.add('open');
+                    algoSelectEl.setAttribute('aria-expanded', 'true');
+                    var opts = Array.from(algoSelectOptionEls);
+                    var idx = opts.findIndex(function(o) { return o.classList.contains('active'); });
+                    var next = e.key === 'ArrowDown' ? (idx + 1) % opts.length : (idx - 1 + opts.length) % opts.length;
+                    opts[next].focus();
+                }
+            });
+
+            algoSelectOptionEls.forEach(function(opt) {
+                opt.setAttribute('tabindex', '-1');
+                opt.addEventListener('click', function() {
+                    algoSelectEl.value = this.dataset.value;
+                    algoSelectEl.classList.remove('open');
+                    algoSelectEl.setAttribute('aria-expanded', 'false');
+                    saveSettings();
+                });
+                opt.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    } else if (e.key === 'Escape') {
+                        algoSelectEl.classList.remove('open');
+                        algoSelectEl.setAttribute('aria-expanded', 'false');
+                        algoSelectTrigger.focus();
+                    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        var opts = Array.from(algoSelectOptionEls);
+                        var idx = opts.indexOf(this);
+                        var next = e.key === 'ArrowDown' ? (idx + 1) % opts.length : (idx - 1 + opts.length) % opts.length;
+                        opts[next].focus();
+                    }
+                });
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!algoSelectEl.contains(e.target)) {
+                    algoSelectEl.classList.remove('open');
+                    algoSelectEl.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            /* ====================================================================
+               6. ПЕРЕКЛЮЧЕНИЕ РЕЖИМА
+               ==================================================================== */
+            modeBtns.forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    modeBtns.forEach(function(b) {
+                        b.classList.remove('active');
+                        b.setAttribute('aria-checked', 'false');
+                    });
+                    this.classList.add('active');
+                    this.setAttribute('aria-checked', 'true');
+                    currentMode = this.dataset.mode;
+                    resultModeLabel.textContent = currentMode === 'unified' ? '— одно окно' : '— два окна (таблица)';
+                    saveSettings();
+                    if (lastResult) {
+                        renderResult(lastResult.original, lastResult.modified, lastResult.ops);
+                    }
+                });
+            });
+
+            var modeBtnArr = Array.from(modeBtns);
+            modeBtnArr.forEach(function(btn, idx) {
+                btn.addEventListener('keydown', function(e) {
+                    var next;
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        next = modeBtnArr[(idx + 1) % modeBtnArr.length];
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        next = modeBtnArr[(idx - 1 + modeBtnArr.length) % modeBtnArr.length];
+                    }
+                    if (next) {
+                        next.focus();
+                        next.click();
+                    }
+                });
+            });
+
+            /* ====================================================================
+               7. КНОПКИ
+               ==================================================================== */
+            var isComparing = false;
+
+            btnClear.addEventListener('click', function() {
+                if (!originalEl.value && !modifiedEl.value) {
+                    return;
+                }
+                originalEl.value = '';
+                modifiedEl.value = '';
+                updateCounters();
+                clearResult();
+                showToast('Поля очищены');
+            });
+
+            btnSwap.addEventListener('click', function() {
+                var tmp = originalEl.value;
+                originalEl.value = modifiedEl.value;
+                modifiedEl.value = tmp;
+                updateCounters();
+                if (lastResult) {
+                    performCompare();
+                } else {
+                    showToast('Тексты поменяны местами');
+                }
+            });
+
+            btnCompare.addEventListener('click', performCompare);
+            btnExportDocx.addEventListener('click', exportResult);
+
+            document.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    performCompare();
+                }
+            });
+
+            /* ====================================================================
+               8. ТОКЕНИЗАЦИЯ
+               ==================================================================== */
+            function tokenize(text, algo) {
+                if (!text) return [];
+                if (algo === 'char') {
+                    return Array.from(text);
+                } else if (algo === 'line') {
+                    var lines = text.split(/\r?\n/);
+                    var result = [];
+                    for (var i = 0; i < lines.length; i++) {
+                        if (i > 0) result.push('\n');
+                        if (lines[i] !== '') result.push(lines[i]);
+                    }
+                    return result;
+                } else {
+                    return text.match(/\S+|\s+/g) || [];
+                }
+            }
+
+            /* ====================================================================
+               9. LCS-АЛГОРИТМ
+               ==================================================================== */
+
+            function computeLCSDiff(a, b) {
+                var n = a.length;
+                var m = b.length;
+                if (n === 0 && m === 0) return [];
+                if (n > MAX_LCS_SIZE || m > MAX_LCS_SIZE) {
+                    return null;
+                }
+                var dp = new Array(n + 1);
+                for (var i = 0; i <= n; i++) {
+                    dp[i] = new Uint32Array(m + 1);
+                }
+                for (var i = 1; i <= n; i++) {
+                    for (var j = 1; j <= m; j++) {
+                        if (a[i - 1] === b[j - 1]) {
+                            dp[i][j] = dp[i - 1][j - 1] + 1;
+                        } else {
+                            dp[i][j] = dp[i - 1][j] > dp[i][j - 1] ? dp[i - 1][j] : dp[i][j - 1];
+                        }
+                    }
+                }
+                var ops = [];
+                var i = n, j = m;
+                while (i > 0 || j > 0) {
+                    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+                        ops.push({ type: 'keep', value: a[i - 1] });
+                        i--; j--;
+                    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                        ops.push({ type: 'insert', value: b[j - 1] });
+                        j--;
+                    } else {
+                        ops.push({ type: 'delete', value: a[i - 1] });
+                        i--;
+                    }
+                }
+                ops.reverse();
+                return ops;
+            }
+
+            /* ====================================================================
+               10. СРАВНЕНИЕ
+               ==================================================================== */
+            function performCompare() {
+                if (isComparing) return;
+                isComparing = true;
+                btnCompare.disabled = true;
+                var origRaw = originalEl.value;
+                var modRaw = modifiedEl.value;
+                if (!origRaw && !modRaw) {
+                    showToast('Вставьте тексты для сравнения');
+                    isComparing = false;
+                    btnCompare.disabled = false;
+                    return;
+                }
+                var algo = algoSelectEl.value;
+
+                var origTokens = tokenize(origRaw, algo);
+                var modTokens = tokenize(modRaw, algo);
+
+                if ((origTokens.length + modTokens.length) > 20000 && algo === 'token') {
+                    showToast('Большой объём, рекомендуется режим «по строкам» или «по символам»');
+                }
+
+                var needSpinner = (origTokens.length + modTokens.length) > 5000;
+                var spinner = null;
+                if (needSpinner) {
+                    spinner = document.createElement('div');
+                    spinner.className = 'loading-overlay';
+                    spinner.innerHTML = '<div class="spinner"></div>';
+                    resultContainer.appendChild(spinner);
+                    resultContainer.style.position = 'relative';
+                    requestAnimationFrame(function() { spinner.classList.add('visible'); });
+                }
+
+                setTimeout(function() {
+                    var ops;
+                    try {
+                        ops = computeLCSDiff(origTokens, modTokens);
+                    } catch (e) {
+                        if (spinner) spinner.remove();
+                        showToast('Ошибка при сравнении: ' + e.message);
+                        isComparing = false;
+                        btnCompare.disabled = false;
+                        return;
+                    }
+
+                    if (ops === null) {
+                        if (spinner) spinner.remove();
+                        compareStatus.textContent = 'Слишком много элементов';
+                        compareStatus.style.color = '#c62828';
+                        isComparing = false;
+                        btnCompare.disabled = false;
+                        return;
+                    }
+
+                    if (ops.length === 0) {
+                        if (spinner) spinner.remove();
+                        compareStatus.textContent = 'Тексты одинаковые';
+                        compareStatus.style.color = '#1e7e34';
+                        showToast('Нет различий');
+                        isComparing = false;
+                        btnCompare.disabled = false;
+                        return;
+                    }
+
+                    lastResult = {
+                        original: origRaw,
+                        modified: modRaw,
+                        ops: ops
+                    };
+
+                    renderResult(origRaw, modRaw, ops);
+                    if (spinner) spinner.remove();
+                    isComparing = false;
+                    btnCompare.disabled = false;
+                }, needSpinner ? 16 : 0);
+            }
+
+            /* ====================================================================
+               11. ОТРИСОВКА
+               ==================================================================== */
+            function renderResult(origRaw, modRaw, ops) {
+                var del = 0, ins = 0, keep = 0;
+                for (var i = 0; i < ops.length; i++) {
+                    if (ops[i].type === 'delete') del++;
+                    else if (ops[i].type === 'insert') ins++;
+                    else keep++;
+                }
+                delCount.textContent = del;
+                insCount.textContent = ins;
+                keepCount.textContent = keep;
+
+                if (del === 0 && ins === 0) {
+                    compareStatus.textContent = 'Тексты одинаковые';
+                    compareStatus.style.color = '#1e7e34';
+                } else {
+                    compareStatus.textContent = 'Тексты различаются';
+                    compareStatus.style.color = '#c62828';
+                }
+                compareStatus.classList.remove('status-flash');
+                void compareStatus.offsetWidth;
+                compareStatus.classList.add('status-flash');
+
+                emptyState.style.display = 'none';
+                resultContent.style.display = 'block';
+                resultContainer.classList.add('has-result');
+                btnExportDocx.disabled = false;
+
+                if (currentMode === 'unified') {
+                    renderUnified(ops);
+                } else {
+                    renderSplitTable(origRaw, modRaw);
+                }
+            }
+
+            function renderUnified(ops) {
+                var parts = ['<div class="result-unified">'];
+                for (var i = 0; i < ops.length; i++) {
+                    var op = ops[i];
+                    var val = escapeHtml(op.value);
+                    if (showSpecials.checked) {
+                        val = val.replace(/\r/g, '').replace(/ /g, '\u00B7').replace(/\t/g, '\u2192').replace(/\n/g, '\u00B6\n');
+                    } else {
+                        val = val.replace(/\r/g, '').replace(/ /g, '\u00A0');
+                    }
+                    if (op.type === 'delete') {
+                        parts.push('<span class="del">' + val + '</span>');
+                    } else if (op.type === 'insert') {
+                        parts.push('<span class="ins">' + val + '</span>');
+                    } else {
+                        parts.push('<span class="keep">' + val + '</span>');
+                    }
+                }
+                parts.push('</div>');
+                resultContent.innerHTML = parts.join('');
+            }
+
+            function renderSplitTable(origRaw, modRaw) {
+                var origLines = origRaw.split(/\r?\n/);
+                var modLines = modRaw.split(/\r?\n/);
+                var showSpec = showSpecials.checked;
+
+                var lineOps;
+                try {
+                    lineOps = computeLCSDiff(origLines, modLines);
+                } catch (e) {
+                    lineOps = [];
+                }
+
+                var origIdx = 0;
+                var modIdx = 0;
+                var rows = [];
+
+                function inlineDiffHtml(oldText, newText) {
+                    var a = Array.from(oldText);
+                    var b = Array.from(newText);
+                    var ops = computeLCSDiff(a, b);
+                    if (!ops) return escapeHtml(oldText) + ' → ' + escapeHtml(newText);
+                    var parts = [];
+                    for (var k = 0; k < ops.length; k++) {
+                        var raw = ops[k].value;
+                        if (showSpec) {
+                            raw = raw.replace(/\r/g, '').replace(/ /g, '\u00B7').replace(/\t/g, '\u2192').replace(/\n/g, '\u00B6\n');
+                        } else {
+                            raw = raw.replace(/\r/g, '').replace(/ /g, '\u00A0');
+                        }
+                        var v = escapeHtml(raw);
+                        if (ops[k].type === 'delete') {
+                            parts.push('<span class="del">' + v + '</span>');
+                        } else if (ops[k].type === 'insert') {
+                            parts.push('<span class="ins">' + v + '</span>');
+                        } else {
+                            parts.push(v);
+                        }
+                    }
+                    return parts.join('');
+                }
+
+                if (lineOps && lineOps.length > 0) {
+                    for (var i = 0; i < lineOps.length; i++) {
+                        var op = lineOps[i];
+                        if (op.type === 'keep') {
+                            var leftText = origLines[origIdx];
+                            var rightText = modLines[modIdx];
+                            var hasInnerDiff = (leftText !== rightText);
+                            if (hasInnerDiff) {
+                                var diffHtml = inlineDiffHtml(leftText, rightText);
+                                rows.push({
+                                    leftNum: origIdx + 1,
+                                    rightNum: modIdx + 1,
+                                    left: diffHtml,
+                                    right: diffHtml,
+                                    hasDiff: true,
+                                    hasSpec: true
+                                });
+                            } else {
+                                rows.push({
+                                    leftNum: origIdx + 1,
+                                    rightNum: modIdx + 1,
+                                    left: escapeHtml(leftText),
+                                    right: escapeHtml(rightText),
+                                    hasDiff: false,
+                                    hasSpec: false
+                                });
+                            }
+                            origIdx++;
+                            modIdx++;
+                        } else if (op.type === 'delete') {
+                            rows.push({
+                                leftNum: origIdx + 1,
+                                rightNum: '',
+                                left: escapeHtml(origLines[origIdx]),
+                                right: '<span class="empty-cell">&mdash;</span>',
+                                hasDiff: true,
+                                hasSpec: false
+                            });
+                            origIdx++;
+                        } else {
+                            rows.push({
+                                leftNum: '',
+                                rightNum: modIdx + 1,
+                                left: '<span class="empty-cell">&mdash;</span>',
+                                right: escapeHtml(modLines[modIdx]),
+                                hasDiff: true,
+                                hasSpec: false
+                            });
+                            modIdx++;
+                        }
+                    }
+                } else {
+                    var maxLen = Math.max(origLines.length, modLines.length);
+                    for (var i = 0; i < maxLen; i++) {
+                        var ol = i < origLines.length ? origLines[i] : '';
+                        var ml = i < modLines.length ? modLines[i] : '';
+                        if (ol === '' && ml === '') continue;
+                        var hasD = (ol !== ml);
+                        rows.push({
+                            leftNum: i + 1,
+                            rightNum: i + 1,
+                            left: escapeHtml(ol),
+                            right: escapeHtml(ml),
+                            hasDiff: hasD,
+                            hasSpec: false
+                        });
+                    }
+                }
+
+                if (rows.length === 0) {
+                    resultContent.innerHTML = '<div class="empty-state">Нет данных для отображения</div>';
+                    return;
+                }
+
+                var parts = ['<div class="result-split-scroll"><table class="result-split-table">'];
+                parts.push('<tr class="pane-label-row">');
+                parts.push('<td class="line-num">#</td>');
+                parts.push('<td class="left">Исходный текст <span class="badge-del">\u25CF удаления</span></td>');
+                parts.push('<td class="line-num">#</td>');
+                parts.push('<td class="right">Изменённый текст <span class="badge-ins">\u25CF добавления</span></td>');
+                parts.push('</tr>');
+
+                for (var i = 0; i < rows.length; i++) {
+                    var row = rows[i];
+                    var rowClass = row.hasDiff ? 'row-diff' : 'row-same';
+                    var leftContent = row.hasSpec ? row.left : (showSpec ? row.left.replace(/\r/g, '').replace(/ /g, '\u00B7').replace(/\t/g, '\u2192').replace(/\n/g, '\u00B6\n') : row.left);
+                    var rightContent = row.hasSpec ? row.right : (showSpec ? row.right.replace(/\r/g, '').replace(/ /g, '\u00B7').replace(/\t/g, '\u2192').replace(/\n/g, '\u00B6\n') : row.right);
+                    parts.push('<tr class="' + rowClass + '">');
+                    parts.push('<td class="line-num">' + (row.leftNum || '') + '</td>');
+                    parts.push('<td class="left">' + leftContent + '</td>');
+                    parts.push('<td class="line-num">' + (row.rightNum || '') + '</td>');
+                    parts.push('<td class="right">' + rightContent + '</td>');
+                    parts.push('</tr>');
+                }
+                parts.push('</table></div>');
+                resultContent.innerHTML = parts.join('');
+            }
+
+            /* ====================================================================
+               12. ЭКСПОРТ В .DOCX
+               ==================================================================== */
+            function exportResult() {
+                if (!lastResult) {
+                    showToast('Нет результата для экспорта');
+                    return;
+                }
+
+                var bodyHtml = '';
+                if (currentMode === 'unified') {
+                    var content = '';
+                    for (var i = 0; i < lastResult.ops.length; i++) {
+                        var op = lastResult.ops[i];
+                        var val = escapeHtml(op.value);
+                        if (showSpecials.checked) {
+                            val = val.replace(/\r/g, '').replace(/ /g, '\u00B7').replace(/\t/g, '\u2192').replace(/\n/g, '\u00B6\n');
+                        }
+                        if (op.type === 'delete') {
+                            content += '<span style="background-color:#fdd;text-decoration:line-through;color:#b71c1c;">' + val + '</span>';
+                        } else if (op.type === 'insert') {
+                            content += '<span style="background-color:#dfd;color:#1a5a2a;">' + val + '</span>';
+                        } else {
+                            content += val;
+                        }
+                    }
+                    bodyHtml = '<h2>Результат сравнения (одно окно)</h2>' +
+                        '<div style="font-family:Consolas,monospace;font-size:12pt;white-space:pre-wrap;">' + content + '</div>';
+                } else {
+                    var origLines = lastResult.original.split(/\r?\n/);
+                    var modLines = lastResult.modified.split(/\r?\n/);
+                    var origLineTokens = [];
+                    for (var i = 0; i < origLines.length; i++) {
+                        origLineTokens.push(tokenize(origLines[i], 'token').join(''));
+                    }
+                    var modLineTokens = [];
+                    for (var i = 0; i < modLines.length; i++) {
+                        modLineTokens.push(tokenize(modLines[i], 'token').join(''));
+                    }
+                    var lineOps;
+                    try { lineOps = computeLCSDiff(origLineTokens, modLineTokens); } catch (e) { lineOps = []; }
+
+                    var origIdx = 0, modIdx = 0, tRows = '';
+                    if (lineOps && lineOps.length > 0) {
+                        for (var i = 0; i < lineOps.length; i++) {
+                            var op = lineOps[i];
+                            if (op.type === 'keep') {
+                                var lt = escapeHtml(origLines[origIdx]);
+                                tRows += '<tr><td style="border:1px solid #ccc;padding:4px 8px;">' + (origIdx+1) + '</td>' +
+                                    '<td style="border:1px solid #ccc;padding:4px 8px;">' + lt + '</td>' +
+                                    '<td style="border:1px solid #ccc;padding:4px 8px;">' + lt + '</td></tr>';
+                                origIdx++; modIdx++;
+                            } else if (op.type === 'delete') {
+                                tRows += '<tr><td style="border:1px solid #ccc;padding:4px 8px;">' + (origIdx+1) + '</td>' +
+                                    '<td style="border:1px solid #ccc;padding:4px 8px;background:#fdd;">' + escapeHtml(origLines[origIdx]) + '</td>' +
+                                    '<td style="border:1px solid #ccc;padding:4px 8px;">&mdash;</td></tr>';
+                                origIdx++;
+                            } else {
+                                tRows += '<tr><td style="border:1px solid #ccc;padding:4px 8px;"></td>' +
+                                    '<td style="border:1px solid #ccc;padding:4px 8px;">&mdash;</td>' +
+                                    '<td style="border:1px solid #ccc;padding:4px 8px;background:#dfd;">' + escapeHtml(modLines[modIdx]) + '</td></tr>';
+                                modIdx++;
+                            }
+                        }
+                    } else {
+                        var maxLen = Math.max(origLines.length, modLines.length);
+                        for (var i = 0; i < maxLen; i++) {
+                            var ol = i < origLines.length ? origLines[i] : '';
+                            var ml = i < modLines.length ? modLines[i] : '';
+                            if (ol === '' && ml === '') continue;
+                            tRows += '<tr><td style="border:1px solid #ccc;padding:4px 8px;">' + (i+1) + '</td>' +
+                                '<td style="border:1px solid #ccc;padding:4px 8px;">' + escapeHtml(ol) + '</td>' +
+                                '<td style="border:1px solid #ccc;padding:4px 8px;">' + escapeHtml(ml) + '</td></tr>';
+                        }
+                    }
+                    bodyHtml = '<h2>Результат сравнения (два окна — таблица)</h2>' +
+                        '<table style="border-collapse:collapse;width:100%;font-family:Consolas,monospace;font-size:11pt;">' +
+                        '<thead><tr style="background:#eef2f7;">' +
+                        '<th style="border:1px solid #ccc;padding:4px 8px;">#</th>' +
+                        '<th style="border:1px solid #ccc;padding:4px 8px;">Исходный текст</th>' +
+                        '<th style="border:1px solid #ccc;padding:4px 8px;">Изменённый текст</th>' +
+                        '</tr></thead><tbody>' + tRows + '</tbody></table>';
+                }
+
+                var fullDoc = '<!DOCTYPE html>' +
+                    '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+                    'xmlns:w="urn:schemas-microsoft-com:office:word" ' +
+                    'xmlns="http://www.w3.org/TR/REC-html40">' +
+                    '<head><meta charset="utf-8">' +
+                    '<title>TextDiff \u2014 результат сравнения<\/title>' +
+                    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->' +
+                    '<style>body{font-family:"Segoe UI",Arial,sans-serif;padding:20px;}h2{color:#1f3a5f;}' +
+                    'table{border-collapse:collapse;width:100%;}th,td{border:1px solid #aaa;padding:4px 8px;vertical-align:top;}' +
+                    'th{background:#eef2f7;font-weight:600;}<\/style><\/head><body>' + bodyHtml +
+                    '<p style="margin-top:20px;font-size:10pt;color:#666;">' +
+                    'Экспортировано из TextDiff. Инструмент работает локально, данные не передаются.<\/p>' +
+                    '<p style="font-size:9pt;color:#999;">Инструмент предоставляется \u00abкак есть\u00bb. ' +
+                    'Автор не несёт ответственности за последствия использования.<\/p>' +
+                    '<\/body><\/html>';
+
+                var blob = new Blob([fullDoc], { type: 'application/msword;charset=utf-8' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'diff_result_' + new Date().toISOString().slice(0,10) + '_' + new Date().toTimeString().slice(0,5).replace(':','') + '.docx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showToast('Экспорт в .docx выполнен');
+            }
+
+            /* ====================================================================
+               13. АВТООБНОВЛЕНИЕ
+               ==================================================================== */
+            showSpecials.addEventListener('change', function() {
+                saveSettings();
+                if (lastResult) {
+                    renderResult(lastResult.original, lastResult.modified, lastResult.ops);
+                }
+            });
+
+            /* ====================================================================
+               14. ИНИЦИАЛИЗАЦИЯ + НАСТРОЙКИ
+               ==================================================================== */
+            var SETTINGS_KEY = 'textdiff_settings';
+            var DEFAULTS = {
+                showSpecials: true,
+                algo: 'char',
+                mode: 'unified'
+            };
+
+            function loadSettings() {
+                try {
+                    var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+                    if (!saved) return Object.assign({}, DEFAULTS);
+                    if (['char', 'token', 'line'].indexOf(saved.algo) === -1) saved.algo = DEFAULTS.algo;
+                    if (['unified', 'split'].indexOf(saved.mode) === -1) saved.mode = DEFAULTS.mode;
+                    if (typeof saved.showSpecials !== 'boolean') saved.showSpecials = DEFAULTS.showSpecials;
+                    return Object.assign({}, DEFAULTS, saved);
+                } catch (e) {
+                    return Object.assign({}, DEFAULTS);
+                }
+            }
+
+            function saveSettings() {
+                var settings = {
+                    showSpecials: showSpecials.checked,
+                    algo: algoSelectEl.value,
+                    mode: currentMode
+                };
+                try {
+                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+                } catch (e) {}
+            }
+
+            function applySettings(settings) {
+                showSpecials.checked = settings.showSpecials;
+                algoSelectEl.value = settings.algo;
+                modeBtns.forEach(function(b) {
+                    var isActive = b.dataset.mode === settings.mode;
+                    b.classList.toggle('active', isActive);
+                    b.setAttribute('aria-checked', isActive ? 'true' : 'false');
+                });
+                currentMode = settings.mode;
+                resultModeLabel.textContent = currentMode === 'unified' ? '— одно окно' : '— два окна (таблица)';
+            }
+
+            applySettings(loadSettings());
+
+            btnResetDefaults.addEventListener('click', function() {
+                applySettings(DEFAULTS);
+                saveSettings();
+                showToast('Настройки сброшены');
+                if (lastResult) {
+                    performCompare();
+                }
+            });
+
+            if (originalEl.value || modifiedEl.value) {
+                setTimeout(performCompare, 100);
+            }
+
+            /* ====================================================================
+               TOOLTIP ENGINE
+               ==================================================================== */
+            (function() {
+                var el = document.createElement('div');
+                el.className = 'tooltip-el';
+                document.body.appendChild(el);
+                var showTimer = null;
+
+                function position(target) {
+                    var r = target.getBoundingClientRect();
+                    var gap = 8;
+                    var tw = el.offsetWidth;
+                    var th = el.offsetHeight;
+                    var vw = window.innerWidth;
+                    var vh = window.innerHeight;
+                    var cx = r.left + r.width / 2;
+                    var above = r.top - gap - th > 0;
+                    var left, top, arrow;
+
+                    if (above) {
+                        top = r.top - gap - th;
+                        arrow = 'arrow-bottom';
+                    } else {
+                        top = r.bottom + gap;
+                        arrow = 'arrow-top';
+                    }
+
+                    left = cx - tw / 2;
+                    if (left < 8) {
+                        left = 8;
+                        arrow += '-left';
+                    } else if (left + tw > vw - 8) {
+                        left = vw - tw - 8;
+                        arrow += '-right';
+                    }
+
+                    if (top < 8) { top = 8; }
+                    if (top + th > vh - 8) { top = vh - th - 8; }
+
+                    el.style.left = left + 'px';
+                    el.style.top = top + 'px';
+                    el.className = 'tooltip-el show ' + arrow;
+                }
+
+                function hide() {
+                    clearTimeout(showTimer);
+                    el.className = 'tooltip-el';
+                    el.textContent = '';
+                }
+
+                document.addEventListener('mouseover', function(e) {
+                    var t = e.target.closest('[data-tooltip]');
+                    if (!t) { hide(); return; }
+                    clearTimeout(showTimer);
+                    showTimer = setTimeout(function() {
+                        el.textContent = t.getAttribute('data-tooltip');
+                        position(t);
+                    }, 300);
+                });
+
+                document.addEventListener('mouseout', function(e) {
+                    var t = e.target.closest('[data-tooltip]');
+                    if (!t) return;
+                    var related = e.relatedTarget;
+                    if (related && t.contains(related)) return;
+                    hide();
+                });
+
+                document.addEventListener('scroll', hide, true);
+                window.addEventListener('resize', hide);
+            })();
+        })();
+    </script>
+</body>
+</html>
